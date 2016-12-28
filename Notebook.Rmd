@@ -1,0 +1,110 @@
+---
+title: "Health Condition Benchmarking"
+output: 
+  html_notebook: 
+    highlight: pygments
+    theme: cosmo
+---
+
+# Project Notebook
+
+__Purpose:__ Show chronic health condition prevelance benchmarked against local, state, and national data.  
+
+* __Goals & Outcomes:__ 
+    1. Define controlled versus uncontrolled disease states.
+    2. Define logic in using the defined states with self-reported condition status. 
+    3. Run 2016 data through algorithm and compare to local, state and national data.
+    4. Run previous years data through algorithm and visualize population change.
+    5. Create SQL for logic/algorithm to use with NGH Data Warehouse.
+    6. Integrate Pre-disease state aggregation into analysis. 
+    
+<hr>
+
+## 1. Define Controlled vs Un-controlled states
+
+ __Condition Definitions:__ 
+ 
+## 2. Process Logic
+
+ __Decision Tree:__
+
+## 3. 2016 Biometric, PHA, and Claims Data
+
+### Data Sources:
+Below are the data source locations and parameters used for this project.
+
++ PHA Detail (https://reports.cernerwellness.com)
+    + **Baseline Start Date:** 09/29/2015
+    + **Baseline End Date:** 09/26/2016
+    + **Member Status:** Both
+    + **Temp Accounts:** Both
+    + **Input Labels:** Show
+    + **Cohort:** No
+
++ Biometric Detail (https://reports.cernerwellness.com)
+    + **Baseline Start Date:** 09/29/2015
+    + **Baseline End Date:** 09/26/2016
+    + **Member Status:** Both
+    + **Temp Accounts:** Both
+    + **Input Labels:** Show
+    + **Cohort:** No
+
++ Provider Intelligence Claims Data (https://pophealthproducts.verscend.com)
+    + **Report Name:** (CD018) Disease Analysis by Members
+    + **Disease:** Diabetes, Hypertension, Hyperlipidemia
+    + **Analysis Period:** Full Cycle (Jul 13 thru Sep 16)
+    + **Exclude:** None
+    + **Member List:** None
+        
+
+### Provider Intelligence - Disease Definitions:
+The following are the diagnosis and proceedure codes used by Verscend (formerly Verisk Health) used to create disease registries for Norton medical insurance participants. - Last Updated: (12/28/2016)
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+library(plotly)
+library(reshape2)
+library(RColorBrewer)
+library(dplyr)
+library(knitr)
+library(scales)
+require(tidyverse)
+require(viridis)
+
+DiagProcCode <- c("Z9641", "Z8631", "Z794", "V5867", "V4585", "T85694A", "O24813", "O24313", "O24312", "O2413", "O2412", "O24113", "O24112", "O24111", "O2403", "O24019", "O24013", "O24012", "O24011", "J1817", "J1815", "G0109", "G0108", "E139", "E138", "E1365", "E1311", "E1310", "E119", "E118", "E1169", "E1165", "E11649", "E11628", "E11622", "E11621", "E11610", "E1159", "E1152", "E1151", "E1149", "E1143", "E1142", "E1140", "E1139", "E1136", "E11359", "E11351", "E11349", "E11341", "E11339", "E11331", "E11329", "E11321", "E11319", "E1129", "E1122", "E1121", "E1100", "E109", "E108", "E1069", "E1065", "E10649", "E10621", "E1059", "E1049", "E1042", "E1041", "E1040", "E10359", "E10351", "E10349", "E10339", "E10331", "E10329", "E10321", "E10319", "E1022", "E1021", "E1010", "E0910", "E089", "E08621", "E0841", "E0829", "E0821", "E0810", "E0800", "E0784", "E0607", "A9278", "A9277", "A9276", "A9274", "A5513", "A5512", "A5507", "A5501", "A5500", "A4253", "A4232", "A4231", "A4230", "95251", "83037", "64804", "64803", "64802", "64801", "64800", "36641", "36207", "36206", "36205", "36204", "36202", "36201", "3572", "3060F", "3046F", "3045F", "3044F", "25093", "25092", "25091", "25090", "25083", "25082", "25081", "25080", "25072", "25071", "25070", "25063", "25062", "25061", "25060", "25053", "25052", "25051", "25050", "25043", "25042", "25041", "25040", "25033", "25032", "25031", "25030", "25022", "25013", "25012", "25011", "25010", "25003", "25002", "25001", "25000", "24980", "24960", "24950", "24911", "24901", "24900", "2028F")
+
+Type <- c("ICD10", "ICD10", "ICD10", "ICD9", "ICD9", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "HCPCS", "CPT4", "CPT4", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "CPT4", "CPT4", "CPT4", "CPT4", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "CPT4")
+
+diabetes <- data.frame(DiagProcCode,Type)
+
+DiagProcCode <- c("O119", "O113", "O112", "O1093", "O1092", "O10919", "O10913", "O10912", "O10911", "O10419", "O10413", "O10013", "O10012", "I674", "I159", "I158", "I151", "I129", "I120", "I119", "I10", "H35033", "4372", "40599", "40591", "40511", "40490", "40401", "40391", "40390", "40311", "40310", "40300", "40291", "40290", "40210", "4019", "4011", "4010")
+
+Type <- c("ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9")
+
+
+hypertension <- data.frame(DiagProcCode,Type)
+
+
+DiagProcCode <- c("E882", "E789", "E786", "E785", "E784", "E783", "E782", "E781", "E780", "2729", "2728", "2725", "2724", "2722", "2721", "2720")
+
+Type <- c("ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD10", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9", "ICD9")
+
+hyperlipidemia <- data.frame(DiagProcCode,Type)
+
+```
+
+##### Provider Intelligence (TG105a) Diabetes Codes
+```{r, echo=FALSE}
+diabetes
+```
+
+##### Provider Intelligence (TG105a) Hypertension Codes
+```{r, echo=FALSE}
+hypertension
+```
+
+##### Provider Intelligence (TG105a) Hyperlipidemia Codes
+```{r, echo=FALSE}
+hyperlipidemia
+```
+
+
